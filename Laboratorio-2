@@ -1,0 +1,74 @@
+.data
+palabra_clave: .space 2048
+
+
+
+.text  
+#asumo que la letra se envia en formato de bits osea A=00001, B=00010, C=00011 y asi sucesivamente
+
+
+######################################################
+# Procedure coding
+######################################################
+
+
+
+##################
+# Function: ingresar_palabra
+# Purpose: que el usuario ingrese la palabra en clave a traves de la consola
+# Inputs: Palabra clav a traves de la consola
+# Outputs: 
+# $s0: direccion inicial de la palabra clave
+# Variables: 
+# $a0 direccion en la que se almacena la palabra clave
+# $a1 maximo numero de letras que la palabra pueda tener (en bytes) donde cada letra es un byte
+##################
+ingresar_palabra:
+ li $v0, 8  			#syscall que permite ingresar una palabra por consola
+ la $a0, palabra_clave          #se carga la direccion inicial de la palabra clave
+ li $a1, 2048 			#se carga el espacio maximo en bytes que la palabra clave puede tener
+ syscall    			#se llama a syscal de $v0
+ move $s0, $a0                  #guardamos en $s0 la direccion de la palabra clave
+
+
+
+##################
+# Function: conseguir_size_palabra_clave:
+# Purpose: encontrar el tema?o de la palabra clave
+# Inputs: Palabra
+# Outputs: Numero de letras de la palabra clave
+# $s1: numero de letras en la palabra clave(ejm 1, 8, 12)
+# Variables: 
+# $t0 apuntador al inicio de la palabra clave
+# $t1 numero que guarda el tama?o de la palabra 
+# $t2: variable que mira el valor almacenado en la posicion que apunta $t0
+##################
+conseguir_size_palabra_clave:
+	la $t0, palabra_clave  #se carga la direccion inicial de la palabra clave 
+	li $t1, 0              #se carga el indice que nos dara el tama?o de la palabra
+	
+	
+ciclo1:                                        #se a?ade un ciclo que recorra la palabra
+	lb $t2, ($t0)	                       #se carga el valor almacenado en la direccion inicial de la palabra  	
+	beq $t2, $zero, salir_ciclo            #miramos que el valor sea diferente de cero. si es igual salatamos a la instruccion para salir del ciclo
+	addi $t1, $t1, 1                       #a?adimos 1 al indice
+	addi $t0, $t0, 1                       #pasamos a la siguiente letra (o palabra almacenada en la memoria)
+	j ciclo1                               #volvemos al inicio del ciclo
+	
+salir_ciclo:
+	move $s1, $t1                         #guardamos en $s1 el tama?o de la palabra
+	subi $s1, $s1, 1                      #hacemos el ajuste de tama?o de palabra ya que tambien se guarda un salto de linea
+
+sb $t0, letra_texto
+sb $t1, letra_clave
+sw $a0, size_alfabeto
+
+add $t2, $t0, $t1
+div $t2, $a0
+mfhi $t4
+
+
+
+
+li $v0, 10
+syscall
