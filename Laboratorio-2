@@ -1,7 +1,11 @@
 .data
 palabra_clave: .space 2048
-
-
+archivo_criptograma: .asciiz "criptogram.txt"
+archivo_descifrado:  .asciiz "deciphered.txt"
+buffer_criptograma:  .space 2048
+buffer_salida:       .space 2048
+mensaje_exito_descifrado: .asciiz "\n[EXITO] Mensaje descifrado correctamente en deciphered.txt\n"
+mensaje_error_archivo:   .asciiz "\n[ERROR] No se pudo abrir el archivo criptogram.txt\n"
 
 .text  
 #asumo que la letra se envia en formato de bits osea A=00001, B=00010, C=00011 y asi sucesivamente
@@ -59,16 +63,222 @@ salir_ciclo:
 	move $s1, $t1                         #guardamos en $s1 el tama?o de la palabra
 	subi $s1, $s1, 1                      #hacemos el ajuste de tama?o de palabra ya que tambien se guarda un salto de linea
 
-sb $t0, letra_texto
-sb $t1, letra_clave
-sw $a0, size_alfabeto
 
-add $t2, $t0, $t1
-div $t2, $a0
-mfhi $t4
+##################
+# Function: descifrar_mensaje
+# Purpose: Cargar el criptograma desde 'criptogram.txt', aplicar el algoritmo de descifrado Vigenere usando la clave almacenada en $s0 e imprimir el resultado en 'deciphered.txt'
+# Inputs: 
+# $s0: direccion inicial de la palabra clave (obtenida en ingresar_palabra)
+# $s1: cantidad de letras de la palabra clave (obtenida en conseguir_size_palabra_clave)
+# Outputs: Archivo deciphered.txt generado con el texto plano
+# Variables: 
+# $t0: indice para recorrer el texto
+# $t1: indice para recorrer la palabra clave
+# $t2: caracter leido del criptograma
+# $t3: caracter leido de la palabra clave
+# $t4: valor del desplazamiento
+# $s2: cantidad de bytes leidos del archivo
+##################
+descifrar_mensaje:
+    # Guardar la direccion de retorno ($ra) en la pila
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+
+    # 1. Leer el archivo criptogram.txt
+    la $a0, archivo_criptograma
+    la $a1, buffer_criptograma
+    li $a2, 2048
+    jal leer_archivo
+    move $s2, $v0                   # $s2 guarda los bytes leidos
+    bltz $s2, error_lectura
+
+    # 2. Inicializar indices
+    li $t0, 0                       # Indice del mensaje
+    li $t1, 0                       # Indice de la clave
+
+ciclo_descifrado:
+    bge $t0, $s2, guardar_resultado
+
+    la $t5, buffer_criptograma
+    add $t5, $t5, $t0
+    lb $t2, 0($t5)                  # Cargar caracter actual
+
+    # Verificar si es letra mayuscula ('A' - 'Z')
+    li $t6, 65
+    li $t7, 90
+    blt $t2, $t6, verificar_minuscula
+    bgt $t2, $t7, verificar_minuscula
+
+    # --- ES MAYUSCULA ---
+    # Indice de la clave = $t1 % $s1
+    div $t1, $s1
+    mfhi $t3                        # Residuo de la division
+    add $t3, $s0, $t3               # Apuntar al caracter en palabra_clave
+    lb $t3, 0($t3)
+
+    # Calcular desplazamiento (A/a = 0, B/b = 1, etc.)
+    subi $t4, $t3, 97
+    bgez $t4, aplicar_formula_mayuscula
+    subi $t4, $t3, 65
+
+aplicar_formula_mayuscula:
+    # Formula: Mi = (Pi - 65 - desplazamiento + 26) % 26 + 65
+    subi $t2, $t2, 65
+    sub $t2, $t2, $t4
+    addi $t2, $t2, 26               # Evitar valores negativos
+    li $t8, 26
+    div $t2, $t8
+    mfhi $t2                        # Operacion modulo 26
+    addi $t2, $t2, 65               # Convertir de nuevo a ASCII
+
+    la $t5, buffer_salida
+    add $t5, $t5, $t0
+    sb $t2, 0($t5)                  # Guardar en el buffer de salida
+
+    addi $t1, $t1, 1                # Avanzar indice de la clave
+    j siguiente_caracter
+
+verificar_minuscula:
+    # Verificar si es letra minuscula ('a' - 'z')
+    li $t6, 97
+    li $t7, 122
+    blt $t2, $t6, no_es_letra
+    bgt $t2, $t7, no_es_letra
+
+    # --- ES MINUSCULA ---
+    div $t1, $s1
+    mfhi $t3
+    add $t3, $s0, $t3
+    lb $t3, 0($t3)
+
+    subi $t4, $t3, 97
+    bgez $t4, aplicar_formula_minuscula
+    subi $t4, $t3, 65
+
+aplicar_formula_minuscula:
+    # Formula: Mi = (Pi - 97 - desplazamiento + 26) % 26 + 97
+    subi $t2, $t2, 97
+    sub $t2, $t2, $t4
+    addi $t2, $t2, 26
+    li $t8, 26
+    div $t2, $t8
+    mfhi $t2
+    addi $t2, $t2, 97
+
+    la $t5, buffer_salida
+    add $t5, $t5, $t0
+    sb $t2, 0($t5)
+
+    addi $t1, $t1, 1                # Avanzar indice de la clave
+    j siguiente_caracter
+
+no_es_letra:
+    # Espacios, saltos de linea y caracteres especiales se copian igual
+    la $t5, buffer_salida
+    add $t5, $t5, $t0
+    sb $t2, 0($t5)
+
+siguiente_caracter:
+    addi $t0, $t0, 1                # Avanzar al siguiente byte del texto
+    j ciclo_descifrado
+
+guardar_resultado:
+    # Poner terminador nulo '\0' al final
+    la $t5, buffer_salida
+    add $t5, $t5, $t0
+    sb $zero, 0($t5)
+
+    # Escribir el resultado en deciphered.txt
+    la $a0, archivo_descifrado
+    la $a1, buffer_salida
+    move $a2, $s2
+    jal escribir_archivo
+
+    # Notificar exito
+    li $v0, 4
+    la $a0, mensaje_exito_descifrado
+    syscall
+    j fin_descifrado
+
+error_lectura:
+    li $v0, 4
+    la $a0, mensaje_error_archivo
+    syscall
+
+fin_descifrado:
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
 
 
+##################
+# Function: leer_archivo
+# Purpose: Abrir 'criptogram.txt' en modo lectura y cargarlo en la RAM
+# Inputs: 
+# $a0: nombre del archivo
+# $a1: direccion del buffer receptor
+# $a2: cantidad maxima de bytes a leer
+# Outputs: 
+# $v0: cantidad de bytes leidos (-1 si ocurre un error)
+##################
+leer_archivo:
+    move $t0, $a1
+    move $t1, $a2
+
+    li $v0, 13                      # Syscall 13: Abrir archivo
+    li $a1, 0                       # Modo 0 = Solo lectura
+    li $a2, 0
+    syscall
+
+    bltz $v0, error_abrir_archivo
+    move $t2, $v0                   # Descriptor de archivo
+
+    li $v0, 14                      # Syscall 14: Leer archivo
+    move $a0, $t2
+    move $a1, $t0
+    move $a2, $t1
+    syscall
+    move $t3, $v0                   # Bytes leidos
+
+    li $v0, 16                      # Syscall 16: Cerrar archivo
+    move $a0, $t2
+    syscall
+
+    move $v0, $t3
+    jr $ra
+
+error_abrir_archivo:
+    li $v0, -1
+    jr $ra
 
 
-li $v0, 10
-syscall
+##################
+# Function: escribir_archivo
+# Purpose: Crear el archivo 'deciphered.txt' y escribir el mensaje descifrado
+# Inputs:
+# $a0: nombre del archivo de salida
+# $a1: direccion del buffer de datos
+# $a2: cantidad de bytes a escribir
+##################
+escribir_archivo:
+    move $t0, $a1
+    move $t1, $a2
+
+    li $v0, 13                      # Syscall 13: Abrir archivo
+    li $a1, 1                       # Modo 1 = Escritura
+    li $a2, 0
+    syscall
+
+    move $t2, $v0                   # Descriptor de archivo
+
+    li $v0, 15                      # Syscall 15: Escribir archivo
+    move $a0, $t2
+    move $a1, $t0
+    move $a2, $t1
+    syscall
+
+    li $v0, 16                      # Syscall 16: Cerrar archivo
+    move $a0, $t2
+    syscall
+
+    jr $ra
