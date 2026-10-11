@@ -1,22 +1,75 @@
 .data
+mensaje_opciones: .asciiz "\n Seleccione lo que desea hacer, 1 para cifrar un texto, 0 para descifrar un archivo encriptado\n"
+mensaje_palabra_clave: .asciiz "\n Escriba la palabra clave para el cifrado o descifrado \n"
+mensaje_error_decision: .asciiz "\n Error se puso un valor no valido\n"
 palabra_clave: .space 2048
+archivo_txt: .asciiz "input.txt"
+archivo_cifrado: .asciiz "criptogram.txt"
+buffer_txt: .space 2048
+buffer_cifrado: .space 2048
+mensaje_exito_cifrado: .asciiz "\n[EXITO] Mensaje cifrado correctamente en ciphered.txt\n"
+mensaje_error_archivo_a_cifrar:   .asciiz "\n[ERROR] No se pudo abrir el archivo input.txt\n"
 archivo_criptograma: .asciiz "criptogram.txt"
 archivo_descifrado:  .asciiz "deciphered.txt"
 buffer_criptograma:  .space 2048
 buffer_salida:       .space 2048
 mensaje_exito_descifrado: .asciiz "\n[EXITO] Mensaje descifrado correctamente en deciphered.txt\n"
 mensaje_error_archivo:   .asciiz "\n[ERROR] No se pudo abrir el archivo criptogram.txt\n"
-
+mensaje_error_palabra_clave: .asciiz "\n[ERROR] La palabra clave no puede estar vacia.txt\n"
 .text  
-#asumo que la letra se envia en formato de bits osea A=00001, B=00010, C=00011 y asi sucesivamente
+
 
 
 ######################################################
 # Procedure coding
 ######################################################
 
+##################
+# Function: menu_decision
+# Purpose: que el usuario pueda elegir si cifrar o descifrar un archivo con nombre valido
+# Inputs: un numero para decidir que camino tomar
+# $v0: variable que guardara temporalmente la decision del usuario
+# Outputs: el camino elegido por el usuario
+# $s3: un 0 o 1, depenediendo de lo que quiera el usuario, si es diferente se dara un mensaje de error
+# Variables: 
+# t1: guarda el comparador para tomar la decision
+##################
+menu_decision:
+ li $v0, 4
+ la $a0, mensaje_opciones
+ syscall
+ 
 
+ li $v0, 5  			#syscall que permite ingresar un numero
+ syscall    			#se llama a syscall de $v0
+ move $s3, $v0                  #guardamos en $s3 el valor elegido por el usuario
+ j rellenar_datos
 
+rellenar_datos:
+ li $v0, 4
+ la $a0, mensaje_palabra_clave
+ syscall
+ jal ingresar_palabra		#saltamos a la instruccion donde le pedimos al usuario la palabra clave
+ jal conseguir_size_palabra_clave #saltamos a la instruccion donde conseguimos la longitud de la palabra              
+ j decision			#saltamos a donde se hace la decision
+  
+
+decision:
+ li $t1, 1			#se guarda un uno para decidir a donde se ira
+ beq $s3, $t1, decision_cifrar  #se compara con 1 para ver si el usuario eligio cifrar
+ beqz $s3,decision_descifrar	#se compara con 0 para ver si el usuario eligio descifrar
+ li $v0, 4			#se prepara para imprimir en consola
+ la $a0, mensaje_error_decision #se carga el mensaje
+ syscall			#se imprime en consola
+ j menu_decision		#se vuelve al inicio
+ 
+ decision_cifrar:
+ jal cifrar_mensaje 		#se usa jal para direccionar $ra a j menu_decision
+ j menu_decision                #se vuelve al inicio
+ 
+ decision_descifrar:
+ jal descifrar_mensaje          #se usa jal para direccionar $ra a j menu_decision
+ j menu_decision                #se vuelve al inicio
 ##################
 # Function: ingresar_palabra
 # Purpose: que el usuario ingrese la palabra en clave a traves de la consola
@@ -33,6 +86,7 @@ ingresar_palabra:
  li $a1, 2048 			#se carga el espacio maximo en bytes que la palabra clave puede tener
  syscall    			#se llama a syscal de $v0
  move $s0, $a0                  #guardamos en $s0 la direccion de la palabra clave
+ jr $ra
 
 
 
@@ -49,10 +103,10 @@ ingresar_palabra:
 ##################
 conseguir_size_palabra_clave:
 	la $t0, palabra_clave  #se carga la direccion inicial de la palabra clave 
-	li $t1, 0              #se carga el indice que nos dara el tama?o de la palabra
+	li $t1, 0              #se carga el indice que nos dara la longitud de la palabra
 	
 	
-ciclo1:                                        #se a?ade un ciclo que recorra la palabra
+ciclo1:                                        #se agrega un ciclo que recorra la palabra
 	lb $t2, ($t0)	                       #se carga el valor almacenado en la direccion inicial de la palabra  	
 	beq $t2, $zero, salir_ciclo            #miramos que el valor sea diferente de cero. si es igual salatamos a la instruccion para salir del ciclo
 	addi $t1, $t1, 1                       #a?adimos 1 al indice
@@ -60,9 +114,44 @@ ciclo1:                                        #se a?ade un ciclo que recorra la
 	j ciclo1                               #volvemos al inicio del ciclo
 	
 salir_ciclo:
-	move $s1, $t1                         #guardamos en $s1 el tama?o de la palabra
-	subi $s1, $s1, 1                      #hacemos el ajuste de tama?o de palabra ya que tambien se guarda un salto de linea
+	move $s1, $t1                         #guardamos en $s1 el "size" de la palabra
+	subi $s1, $s1, 1                      #hacemos el ajuste de "size" de palabra ya que tambien se guarda un salto de linea
+	beqz $s1, longitud_cero
+	jr $ra
 
+longitud_cero:
+ li $v0, 4
+ la $a0, mensaje_error_palabra_clave
+ syscall
+ j rellenar_datos
+##################
+# Function: cifrar_mensaje
+# Purpose: Cargar el mensaje desde 'input.txt', aplicar el algoritmo de cifrado Vigenere usando la clave almacenada en $s0 e imprimir el resultado en 'criptogram.txt'
+# Inputs: 
+# $s0: direccion inicial de la palabra clave (obtenida en ingresar_palabra)
+# $s1: cantidad de letras de la palabra clave (obtenida en conseguir_size_palabra_clave)
+# Outputs: Archivo criptogram.txt generado con el texto plano
+# Variables: 
+# $t0: indice para recorrer el texto
+# $t1: indice para recorrer la palabra clave
+# $t2: caracter leido del texto
+# $t3: caracter leido de la palabra clave
+# $t4: valor del desplazamiento
+# $s2: cantidad de bytes leidos del archivo
+##################
+
+cifrar_mensaje:
+# Guardar la direccion de retorno ($ra) en la pila
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
+
+#Leer el archivo input.txt
+    la $a0, archivo_txt             #cargamos la direccion del archivo a cifrar
+    la $a1, buffer_txt		    #cargamos la direccion del espacio donde se cifrara el archivo
+    li $a2, 2048   		    #guardamos el espacio donde se almacenara el cifrado
+    jal leer_archivo		    #usamos la funcion de leer archivo
+    move $s2, $v0                   # $s2 guarda los bytes leidos
+    bltz $s2, error_lectura         # mandamos el error si no se logro leer el archivo
 
 ##################
 # Function: descifrar_mensaje
