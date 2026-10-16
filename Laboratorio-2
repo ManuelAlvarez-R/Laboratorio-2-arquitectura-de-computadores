@@ -70,9 +70,9 @@ rellenar_datos:
  li $v0, 4
  la $a0, mensaje_palabra_clave
  syscall
- jal ingresar_palabra		#saltamos a la instruccion donde le pedimos al usuario la palabra clave
+ jal ingresar_palabra		  #saltamos a la instruccion donde le pedimos al usuario la palabra clave
  jal conseguir_size_palabra_clave #saltamos a la instruccion donde conseguimos la longitud de la palabra              
- j decision			#saltamos a donde se hace la decision
+ j decision			  #saltamos a donde se hace la decision
   
 
 decision:
@@ -319,7 +319,7 @@ ciclo_descifrado:
  jal obtener_posicion_letra_palabra_clave                 # buscamos la posicion en el alfabeto de la palabra clave
  bltz $s5, siguiente_caracter_descifrado                  # verificamos que la palabra leida en el texto este en el alfabeto de lo contrario se deja como esta en el texto
  sub $t6, $s5, $s6                                        # restamos los registros
- addi $t6, $t6, 98                                             # sumamos 98 para evitar numeros negativos
+ addi $t6, $t6, 98                                        # sumamos 98 para evitar numeros negativos
  div $t6, $t7                                             # dividimos el resultado de $t6 por la longitud del alfabeto
  mfhi $t8                                                 # sacamos el residuo, que seria la posicion del nuevo caracter
  jal obtener_caracter                                     # obtenemos el nuevo caracter en base a $t8
@@ -461,13 +461,13 @@ obtener_posicion_letra_palabra_clave:
  li $t2, 0                                                        #creamos el indice
  la $t3, alfabeto                                                 #cargamos la direccion del alfabeto
 
-ciclo_buscar_posicion_letra_texto_palabra_clave:
+ciclo_buscar_posicion_letra_palabra_clave:
  lb $t4, 0($t3)                                                   #cargamos el caracter segun el indice
  beq $t4, $zero,clave_no_esta                                     #verificamos que no hayamos terminado de recorrer el alfabeto
  beq $t4, $s4,posicion_encontrada_palabra_clave                   #verificamos que el caracter en la poscion del $t2 del alfabeto sea la misma que la leida en la palabra clave
- addi $t2, $t2, 1                                                      #aumentamos el contador
- addi $t3, $t3, 1							  #pasamos al siguiente caracter del alfabeto
- j ciclo_buscar_posicion_letra_palabra_clave                     #volvemos al incio del ciclo
+ addi $t2, $t2, 1                                                 #aumentamos el contador
+ addi $t3, $t3, 1						  #pasamos al siguiente caracter del alfabeto
+ j ciclo_buscar_posicion_letra_palabra_clave                      #volvemos al incio del ciclo
 
 posicion_encontrada_palabra_clave:
  move $s6, $t2                                                    #guardamos la posicion en el registro $s6
