@@ -1,44 +1,41 @@
 .data
 
-#data
+# Alfabeto extendido definido por el equipo (98 caracteres)
 alfabeto: .asciiz "\t\n\r !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
 
-
-#mensajes de texto
-
-mensaje_opciones: .asciiz "\n Seleccione lo que desea hacer, 1 para cifrar un texto, 0 para descifrar un archivo encriptado\n"
-mensaje_palabra_clave: .asciiz "\n Escriba la palabra clave para el cifrado o descifrado \n"
-mensaje_error_decision: .asciiz "\n Error se puso un valor no valido\n"
-mensaje_exito_descifrado: .asciiz "\n[EXITO] Mensaje descifrado correctamente en deciphered.txt\n"
+# Mensajes de texto e interfaz mejorada
+mensaje_opciones:               .asciiz "\n==========================================\n        SISTEMA DE CIFRADO VIGEN�?RE       \n==========================================\n  [1] Cifrar texto  (input.txt -> criptogram)\n  [2] Descifrar     (criptogram -> deciphered)\n  [0] Salir del programa\n------------------------------------------\n Seleccione una opcion: "
+mensaje_palabra_clave:          .asciiz "\n[?] Escriba la palabra clave: "
+mensaje_error_decision:         .asciiz "\n[ERROR] Opcion no valida. Por favor intente de nuevo.\n"
+mensaje_exito_descifrado:       .asciiz "\n[EXITO] Mensaje descifrado correctamente en deciphered.txt\n"
 mensaje_error_archivo_criptogram:   .asciiz "\n[ERROR] No se pudo abrir el archivo criptogram.txt\n"
-mensaje_error_palabra_clave: .asciiz "\n[ERROR] La palabra clave no puede estar vacia.txt\n"
-mensaje_exito_cifrado: .asciiz "\n[EXITO] Mensaje cifrado correctamente en criptogram.txt\n"
+mensaje_error_palabra_clave:    .asciiz "\n[ERROR] La palabra clave no puede estar vacia.\n"
+mensaje_exito_cifrado:          .asciiz "\n[EXITO] Mensaje cifrado correctamente en criptogram.txt\n"
 mensaje_error_archivo_a_cifrar:   .asciiz "\n[ERROR] No se pudo abrir el archivo input.txt\n"
+mensaje_salir:                  .asciiz "\n[INFO] Programa finalizado con exito. ¡Hasta pronto!\n"
 
-#palabra que el usuario ingresara
-palabra_clave: .space 2049
+# Palabra que el usuario ingresará
+palabra_clave:                  .space 2049
 
-#archivos que se leeran
-archivo_input_txt: .asciiz "input.txt"
-archivo_criptograma: .asciiz "criptogram.txt"
+# Archivos que se leerán
+archivo_input_txt:              .asciiz "input.txt"
+archivo_criptograma:            .asciiz "criptogram.txt"
 
-#espacios para el texto
-buffer_input_txt:    .space 2049
-buffer_criptograma:  .space 2049
+# Espacios para el texto
+buffer_input_txt:               .space 2049
+buffer_criptograma:             .space 2049
 
+# Archivos que se devuelven
+archivo_cifrado:                .asciiz "criptogram.txt"
+archivo_descifrado:             .asciiz "deciphered.txt"
 
-
-#archivos que se devuelven
-archivo_cifrado: .asciiz "criptogram.txt"
-archivo_descifrado:  .asciiz "deciphered.txt"
-
-#espacio de archivos
-buffer_cifrado:      .space 2049
-buffer_salida:       .space 2049
+# Espacio de archivos
+buffer_cifrado:                 .space 2049
+buffer_salida:                  .space 2049
 
 
 .text  
-
+.globl main
 
 
 ######################################################
@@ -47,52 +44,77 @@ buffer_salida:       .space 2049
 
 ##################
 # Function: menu_decision
-# Purpose: que el usuario pueda elegir si cifrar o descifrar un archivo con nombre valido
-# Inputs: un numero para decidir que camino tomar
-# $v0: variable que guardara temporalmente la decision del usuario
-# Outputs: el camino elegido por el usuario
-# $s3: un 0 o 1, depenediendo de lo que quiera el usuario, si es diferente se dara un mensaje de error
+# Purpose: Mostrar un menú interactivo y limpio para que el usuario elija entre cifrar, descifrar o salir.
+# Inputs: Un número entero ingresado por consola.
+# Outputs: Direcciona el flujo hacia la opción seleccionada o muestra error.
 # Variables: 
-# t1: guarda el comparador para tomar la decision
+# $s3: Guarda la opción elegida por el usuario.
+# $t1: Registros de comparación temporal.
 ##################
+main:
 menu_decision:
- li $v0, 4
- la $a0, mensaje_opciones
- syscall
- 
+    li $v0, 4
+    la $a0, mensaje_opciones
+    syscall
+    
+    li $v0, 5               # Syscall para leer un número entero
+    syscall                 
+    move $s3, $v0           # Guardamos en $s3 el valor elegido por el usuario
 
- li $v0, 5  			#syscall que permite ingresar un numero
- syscall    			#se llama a syscall de $v0
- move $s3, $v0                  #guardamos en $s3 el valor elegido por el usuario
- j rellenar_datos
+    # Validar las opciones disponibles: 1 (Cifrar), 2 (Descifrar), 0 (Salir)
+    li $t1, 1
+    beq $s3, $t1, opcion_cifrar_flujo
 
+    li $t1, 2
+    beq $s3, $t1, opcion_descifrar_flujo
+
+    beqz $s3, opcion_salir_flujo
+
+    # Si se introduce cualquier otro valor, mostrar error y repetir
+    li $v0, 4
+    la $a0, mensaje_error_decision
+    syscall
+    j menu_decision
+
+opcion_cifrar_flujo:
+    jal rellenar_datos
+    jal cifrar_mensaje
+    j menu_decision         # Al terminar, regresa al menú principal
+
+opcion_descifrar_flujo:
+    jal rellenar_datos
+    jal descifrar_mensaje
+    j menu_decision         # Al terminar, regresa al menú principal
+
+opcion_salir_flujo:
+    li $v0, 4
+    la $a0, mensaje_salir
+    syscall
+    li $v0, 10              # Syscall para terminar la ejecución correctamente
+    syscall
+
+
+##################
+# Function: rellenar_datos
+# Purpose: Coordinar la solicitud de la palabra clave y su tamaño protegiendo $ra en la pila
+# Inputs: Ninguno
+# Outputs: $s0 y $s1 inicializados
+##################
 rellenar_datos:
- li $v0, 4
- la $a0, mensaje_palabra_clave
- syscall
- jal ingresar_palabra		  #saltamos a la instruccion donde le pedimos al usuario la palabra clave
- jal conseguir_size_palabra_clave #saltamos a la instruccion donde conseguimos la longitud de la palabra              
- j decision			  #saltamos a donde se hace la decision
-  
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)
 
-decision:
- li $t1, 1			#se guarda un uno para decidir a donde se ira
- beq $s3, $t1, decision_cifrar  #se compara con 1 para ver si el usuario eligio cifrar
- beqz $s3,decision_descifrar	#se compara con 0 para ver si el usuario eligio descifrar
- li $v0, 4			#se prepara para imprimir en consola
- la $a0, mensaje_error_decision #se carga el mensaje
- syscall			#se imprime en consola
- j menu_decision		#se vuelve al inicio
- 
- decision_cifrar:
- jal cifrar_mensaje 		#se usa jal para direccionar $ra a j menu_decision
- j menu_decision                #se vuelve al inicio
- 
- decision_descifrar:
- jal descifrar_mensaje          #se usa jal para direccionar $ra a j menu_decision
- j menu_decision                #se vuelve al inicio
- 
+    li $v0, 4
+    la $a0, mensaje_palabra_clave
+    syscall
 
+    jal ingresar_palabra            # Pedimos al usuario la palabra clave
+    jal conseguir_size_palabra_clave # Calculamos su longitud           
+
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    jr $ra
+   
 
 
 ##################
@@ -103,16 +125,14 @@ decision:
 # $a1 maximo numero de letras que la palabra pueda tener (en bytes) donde cada letra es un byte
 # Outputs: 
 # $s0: direccion inicial de la palabra clave
-# Variables: 
-
 ##################
 ingresar_palabra:
- li $v0, 8  			#syscall que permite ingresar una palabra por consola
- la $a0, palabra_clave          #se carga la direccion inicial de la palabra clave
- li $a1, 2049 			#se carga el espacio maximo en bytes que la palabra clave puede tener
- syscall    			#se llama a syscal de $v0
- move $s0, $a0                  #guardamos en $s0 la direccion de la palabra clave
- jr $ra
+    li $v0, 8               # syscall que permite ingresar una palabra por consola
+    la $a0, palabra_clave   # se carga la direccion inicial de la palabra clave
+    li $a1, 2049            # se carga el espacio maximo en bytes que la palabra clave puede tener
+    syscall                 # se llama a syscall de $v0
+    move $s0, $a0           # guardamos en $s0 la direccion de la palabra clave
+    jr $ra
 
 
 
@@ -124,32 +144,32 @@ ingresar_palabra:
 # $s1: numero de letras en la palabra clave(ejm 1, 8, 12)
 # Variables: 
 # $t0 apuntador al inicio de la palabra clave
-# $t1 numero que guarda el tama?o de la palabra 
+# $t1 numero que guarda el tamaño de la palabra 
 # $t2: variable que mira el valor almacenado en la posicion que apunta $t0
 ##################
 conseguir_size_palabra_clave:
- la $t0, palabra_clave  #se carga la direccion inicial de la palabra clave 
- li $t1, 0              #se carga el indice que nos dara la longitud de la palabra
-	
-	
-ciclo1:                                 #se agrega un ciclo que recorra la palabra
- lb $t2, ($t0)	                        #se carga el valor almacenado en la direccion inicial de la palabra  	
- beq $t2, $zero, salir_ciclo            #miramos que el valor sea diferente de cero. si es igual salatamos a la instruccion para salir del ciclo
- addi $t1, $t1, 1                       #a?adimos 1 al indice
- addi $t0, $t0, 1                       #pasamos a la siguiente letra (o palabra almacenada en la memoria)
- j ciclo1                               #volvemos al inicio del ciclo
-	
+    la $t0, palabra_clave   # se carga la direccion inicial de la palabra clave 
+    li $t1, 0               # se carga el indice que nos dara la longitud de la palabra
+    
+ciclo1:                     # se agrega un ciclo que recorra la palabra
+    lb $t2, 0($t0)          # se carga el valor almacenado en la direccion inicial de la palabra     
+    beq $t2, $zero, salir_ciclo # miramos que el valor sea diferente de cero. si es igual saltamos a la instruccion para salir del ciclo
+    addi $t1, $t1, 1        # añadimos 1 al indice
+    addi $t0, $t0, 1        # pasamos a la siguiente letra (o palabra almacenada en la memoria)
+    j ciclo1                # volvemos al inicio del ciclo
+    
 salir_ciclo:
- move $s1, $t1                         #guardamos en $s1 el "size" de la palabra
- subi $s1, $s1, 1                      #hacemos el ajuste de "size" de palabra ya que tambien se guarda un salto de linea
- beqz $s1, longitud_cero               #verificamos que la palabra no sea cero
- jr $ra
+    move $s1, $t1           # guardamos en $s1 el "size" de la palabra
+    subi $s1, $s1, 1        # hacemos el ajuste de "size" de palabra ya que tambien se guarda un salto de linea
+    beqz $s1, longitud_cero # verificamos que la palabra no sea cero
+    jr $ra
 
-longitud_cero:                         #En caso de que la longitud sea cero se le da un mensaje de error al usuario y vuelve a pedir la palabra clave
- li $v0, 4
- la $a0, mensaje_error_palabra_clave
- syscall
- j rellenar_datos
+longitud_cero:              # En caso de que la longitud sea cero se le da un mensaje de error al usuario y vuelve a pedir la palabra clave
+    li $v0, 4
+    la $a0, mensaje_error_palabra_clave
+    syscall
+    j rellenar_datos
+ 
  
 ##################
 # Function: cifrar_mensaje
@@ -167,88 +187,81 @@ longitud_cero:                         #En caso de que la longitud sea cero se l
 # $t0: indice para recorrer el texto
 # $t1: indice para recorrer la palabra clave
 # $t3: caracter actual en la palabra clave
-# $t4: valor del desplazamiento
+# $t4: nuevo caracter
 # $t5: direccion donde empieza el texto que se va a cifrar
-# $t6: suma de las posiciones de los caractes leidos ($s5+$s6)
+# $t6: suma de las posiciones de los caracteres leidos ($s5+$s6)
 # $t7: longitud del alfabeto
-# $t8: 
-
+# $t8: posicion del caracter cifrado
 #
 # $s2: cantidad de bytes leidos del archivo (longitud del archivo)
 # $s3: caracter actual del alfabeto leido en el archivo
 # $s4: caracter actual de la palabra clave leido en el archivo
 # $s5: posicion en la que se encuentra el caracter leido del texto segun el alfabeto
 # $s6: posicion en la que se encuentra el caracter leido de la palabra clave segun el alfabeto
-
 # $v0: retorna el nuevo indice al que apunta la letra cifrada
 ##################
-
 cifrar_mensaje:
+    # Guardar la direccion de retorno ($ra) en la pila
+    addi $sp, $sp, -4               # guardamos la direccion anterior a la final
+    sw $ra, 0($sp)                  # almacenamos la direccion de retorno de $sp en $ra
 
-# Guardar la direccion de retorno ($ra) en la pila
- addi $sp, $sp, -4               #guardamos la direccion anterior a la final
- sw $ra, 0($sp)                  #almacenamos da direccion de retorno de $sp en $ra
-
-#Leer el archivo input.txt
- la $a0, archivo_input_txt       #cargamos la direccion del archivo a cifrar
- la $a1, buffer_input_txt        #cargamos la direccion donde esta el texto que se cifrara
- li $a2, 2049   		 #guardamos el espacio donde se almacenara el cifrado
- li $t7, 98                      #longitud del alfabeto
- jal leer_archivo		 #usamos la funcion de leer archivo
- move $s2, $v0                   # $s2 guarda los bytes leidos
- bltz $s2, error_lectura_cifrado # mandamos el error si no se logro leer el archivo
-
+    # Leer el archivo input.txt
+    la $a0, archivo_input_txt       # cargamos la direccion del archivo a cifrar
+    la $a1, buffer_input_txt        # cargamos la direccion donde esta el texto que se cifrara
+    li $a2, 2049                    # guardamos el espacio donde se almacenara el cifrado
+    li $t7, 98                      # longitud del alfabeto
+    jal leer_archivo                # usamos la funcion de leer archivo
+    move $s2, $v0                   # $s2 guarda los bytes leidos
+    bltz $s2, error_lectura_cifrado # mandamos el error si no se logro leer el archivo
     
-#inicializamos los indices    
- li $t0, 0                       # Indice del mensaje
- li $t1, 0                       # Indice de la clave 
+    # inicializamos los indices    
+    li $t0, 0                       # Indice del mensaje
+    li $t1, 0                       # Indice de la clave 
 
- 
 ciclo_cifrado:
- bge $t0, $s2, guardar_resultado_cifrado      #verificamos que no se halla leido todo el archivo
- la $t5, buffer_input_txt                     #cargamos la direccion donde empieza el texto que se va a cifrar
- add $t5, $t5, $t0			      #pasamos a la posicion $t5+i del texto que se va a cifrar
- lb $s3, 0($t5)                               #Cargar caracter actual 
+    bge $t0, $s2, guardar_resultado_cifrado       # verificamos que no se haya leido todo el archivo
+    la $t5, buffer_input_txt                      # cargamos la direccion donde empieza el texto que se va a cifrar
+    add $t5, $t5, $t0                           # pasamos a la posicion $t5+i del texto que se va a cifrar
+    lb $s3, 0($t5)                      # Cargar caracter actual 
  
-# Indice de la clave = $t1 % $s1
- div $t1, $s1                                             # dividimos la posicion actual sobre la longitud de la palabra clave
- mfhi $t3                                                 # Residuo de la division
- add $t3, $s0, $t3                                        # Apuntar al caracter leido de la palabra clave
- lb $s4, 0($t3)                                           # cargamos el caracter leido de la palabra clave
- jal obtener_posicion_letra_texto			  # buscamos la posicion en el alfabeto de la letra leida
- jal obtener_posicion_letra_palabra_clave                 # buscamos la posicion en el alfabeto de la palabra clave
- bltz $s5, siguiente_caracter_cifrado                     # verificamos que la palabra leida en el texto este en el alfabeto de lo contrario se deja como esta en el texto
- add $t6, $s5, $s6                                        # sumamos los registros                      
- div $t6, $t7                                             # dividimos la suma por la longitud del alfabeto
- mfhi $t8                                                 # sacamos el residuo, que seria la posicion del nuevo caracter
- jal obtener_caracter                                     # obtenemos el nuevo caracter en base a $t8
- move $t4, $v0                                            # guardamos el caracter obtenido en $t4
- la $t5, buffer_cifrado          #cargamos la posicion inicial donde se guarda el texto cifrado
- add $t5, $t5, $t0               #nos movemos a la posicion de la letra que modificamos
- sb $t4, 0($t5)                  #almacenamos la letra cifrada en buffer_cifrado
+    # Indice de la clave = $t1 % $s1
+    div $t1, $s1                                    # dividimos la posicion actual sobre la longitud de la palabra clave
+    mfhi $t3                                        # Residuo de la division
+    add $t3, $s0, $t3                                       # Apuntar al caracter leido de la palabra clave
+    lb $s4, 0($t3)                                          # cargamos el caracter leido de la palabra clave
+    jal obtener_posicion_letra_texto                        # buscamos la posicion en el alfabeto de la letra leida
+    jal obtener_posicion_letra_palabra_clave                # buscamos la posicion en el alfabeto de la palabra clave
+    bltz $s5, siguiente_caracter_cifrado                    # verificamos que la palabra leida en el texto este en el alfabeto de lo contrario se deja como esta en el texto
+    add $t6, $s5, $s6                                       # sumamos los registros                      
+    div $t6, $t7                                            # dividimos la suma por la longitud del alfabeto
+    mfhi $t8                                        # sacamos el residuo, que seria la posicion del nuevo caracter
+    jal obtener_caracter                            # obtenemos el nuevo caracter en base a $t8
+    move $t4, $v0                                   # guardamos el caracter obtenido en $t4
+    la $t5, buffer_cifrado          # cargamos la posicion inicial donde se guarda el texto cifrado
+    add $t5, $t5, $t0               # nos movemos a la posicion de la letra que modificamos
+    sb $t4, 0($t5)                  # almacenamos la letra cifrada en buffer_cifrado
  
- addi $t1, $t1, 1                #avanzamos el indice de la clave
- addi $t0, $t0, 1                #avanzamos el indice del mensake
+    addi $t1, $t1, 1                # avanzamos el indice de la clave
+    addi $t0, $t0, 1                # avanzamos el indice del mensaje
  
- j ciclo_cifrado
-
+    j ciclo_cifrado
 
 guardar_resultado_cifrado:
-# Poner terminador nulo '\0' al final
- la $t5, buffer_cifrado                      #cargamos la ultima posicion de la posicion donde queda el intervalo de cifrado            
- add $t5, $t5, $t0                           #le agregamos un cero
- sb $zero, 0($t5)                            #almacenamos la poscion final
-# Escribir el resultado en criptogram.txt
- la $a0, archivo_cifrado                    #cargamos la posicion de donde empieza el archivo a crear (criptogram.txt en este caso)
- la $a1, buffer_cifrado			    #cargamos la longitud archivo maxima a crear (criptogram.txt en este caso)	
- move $a2, $s2                              #cargamos la longitud del archivo que vamos a leer
- jal escribir_archivo
+    # Poner terminador nulo '\0' al final
+    la $t5, buffer_cifrado                      # cargamos la ultima posicion de la posicion donde queda el intervalo de cifrado           
+    add $t5, $t5, $t0                           # le agregamos un cero
+    sb $zero, 0($t5)                            # almacenamos la posicion final
+    # Escribir el resultado en criptogram.txt
+    la $a0, archivo_cifrado                     # cargamos la posicion de donde empieza el archivo a crear (criptogram.txt en este caso)
+    la $a1, buffer_cifrado                  # cargamos la longitud archivo maxima a crear (criptogram.txt en este caso)    
+    move $a2, $s2                               # cargamos la longitud del archivo que vamos a leer
+    jal escribir_archivo
 
-# Notificar exito
- li $v0, 4				   #cargamos la instruccion que deseamos hacer
- la $a0, mensaje_exito_cifrado		   #cargamos el mensaje que vamos a enviar
- syscall			           #llamamos al sistema
- j fin_cifrado
+    # Notificar exito
+    li $v0, 4                   # cargamos la instruccion que deseamos hacer
+    la $a0, mensaje_exito_cifrado           # cargamos el mensaje que vamos a enviar
+    syscall                     # llamamos al sistema
+    j fin_cifrado
  
 siguiente_caracter_cifrado:
     la   $t5, buffer_cifrado
@@ -262,81 +275,91 @@ error_lectura_cifrado:
     la $a0, mensaje_error_archivo_a_cifrar
     syscall
 
-
 fin_cifrado:
     lw $ra, 0($sp)
     addi $sp, $sp, 4
     jr $ra
     
+
 ##################
 # Function: descifrar_mensaje
 # Purpose: Cargar el criptograma desde 'criptogram.txt', aplicar el algoritmo de descifrado Vigenere usando la clave almacenada en $s0 e imprimir el resultado en 'deciphered.txt'
 # Inputs: 
+#
 # $s0: direccion inicial de la palabra clave (obtenida en ingresar_palabra)
 # $s1: cantidad de letras de la palabra clave (obtenida en conseguir_size_palabra_clave)
+#
 # Outputs: Archivo deciphered.txt generado con el texto plano
 # Variables: 
+# $a0: la direccion del archivo a descifrar
+# $a1: la direccion donde esta el texto que se descifrara
+# $a2: el espacio donde se almacenara el descifrado
+#
 # $t0: indice para recorrer el texto
 # $t1: indice para recorrer la palabra clave
 # $t2: caracter leido del criptograma
 # $t3: caracter leido de la palabra clave
-# $t4: valor del desplazamiento
+# $t4: nuevo caracter del descifrado
+# $t5: direccion donde empieza el texto que se va a descifrar
+# $t6: resta de las posiciones de los caracteres leidos mas el tama?o del alfabeto ($s5-$s6)+98
+# $t7: longitud del alfabeto
+# $t8: posicion del caracter descifrado
+
 # $s2: cantidad de bytes leidos del archivo
+# $s3: caracter actual del alfabeto leido en el archivo
+# $s4: caracter actual de la palabra clave leido en el archivo
+# $s5: posicion en la que se encuentra el caracter leido del texto segun el alfabeto
+# $s6: posicion en la que se encuentra el caracter leido de la palabra clave segun el alfabeto
+# $v0: retorna el nuevo indice al que apunta la letra descifrada
 ##################
-
-
 descifrar_mensaje:
-# Guardar la direccion de retorno ($ra) en la pila
- addi $sp, $sp, -4               #guardamos la direccion anterior a la final
- sw $ra, 0($sp)                  #almacenamos da direccion de retorno de $sp en $ra
+    # Guardar la direccion de retorno ($ra) en la pila
+    addi $sp, $sp, -4               # guardamos la direccion anterior a la final
+    sw $ra, 0($sp)                  # almacenamos la direccion de retorno de $sp en $ra
 
-# 1. Leer el archivo criptogram.txt
- la $a0, archivo_criptograma     # cargamos la direccion del archivo a descifrar
- la $a1, buffer_criptograma      # cargamos la direccion donde esta el texto que se descifrara
- li $a2, 2049   		 # guardamos el espacio donde se almacenara el descifrado
- li $t7, 98                      # longitud del alfabeto
- jal leer_archivo                # usamos la funcion de leer archivo
- move $s2, $v0                   # $s2 guarda los bytes leidos
- bltz $s2, error_lectura         # mandamos el error si no se logro leer el archivo
+    # 1. Leer el archivo criptogram.txt
+    la $a0, archivo_criptograma     # cargamos la direccion del archivo a descifrar
+    la $a1, buffer_criptograma      # cargamos la direccion donde esta el texto que se descifrara
+    li $a2, 2049                    # guardamos el espacio donde se almacenara el descifrado
+    li $t7, 98                      # longitud del alfabeto
+    jal leer_archivo                # usamos la funcion de leer archivo
+    move $s2, $v0                   # $s2 guarda los bytes leidos
+    bltz $s2, error_lectura         # mandamos el error si no se logro leer el archivo
 
-# 2. Inicializar indices
- li $t0, 0                       # Indice del mensaje
- li $t1, 0                       # Indice de la clave
+    # 2. Inicializar indices
+    li $t0, 0                       # Indice del mensaje
+    li $t1, 0                       # Indice de la clave
 
 ciclo_descifrado:
- bge $t0, $s2, guardar_resultado_descifrado              # verificamos que no se halla leido todo el archivo
+    bge $t0, $s2, guardar_resultado_descifrado              # verificamos que no se haya leido todo el archivo
 
- la $t5, buffer_criptograma                              # cargamos la direccion donde empieza el texto que se va a descifrar
- add $t5, $t5, $t0                                       # pasamos a la posicion $t5+i del texto que se va a cifrar
- lb $s3, 0($t5)                                          # Cargar caracter actual
+    la $t5, buffer_criptograma                              # cargamos la direccion donde empieza el texto que se va a descifrar
+    add $t5, $t5, $t0                                       # pasamos a la posicion $t5+i del texto que se va a cifrar
+    lb $s3, 0($t5)                                          # Cargar caracter actual
 
-# Indice de la clave = $t1 % $s1
- div $t1, $s1                                             # dividimos la posicion actual sobre la longitud de la palabra clave
- mfhi $t3                                                 # Residuo de la division
- add $t3, $s0, $t3                                        # Apuntar al caracter leido de la palabra clave
- lb $s4, 0($t3)                                           # cargamos el caracter leido de la palabra clave
- jal obtener_posicion_letra_texto			  # buscamos la posicion en el alfabeto de la letra leida
- jal obtener_posicion_letra_palabra_clave                 # buscamos la posicion en el alfabeto de la palabra clave
- bltz $s5, siguiente_caracter_descifrado                  # verificamos que la palabra leida en el texto este en el alfabeto de lo contrario se deja como esta en el texto
- sub $t6, $s5, $s6                                        # restamos los registros
- addi $t6, $t6, 98                                        # sumamos 98 para evitar numeros negativos
- div $t6, $t7                                             # dividimos el resultado de $t6 por la longitud del alfabeto
- mfhi $t8                                                 # sacamos el residuo, que seria la posicion del nuevo caracter
- jal obtener_caracter                                     # obtenemos el nuevo caracter en base a $t8
- move $t4, $v0                                            # guardamos el caracter obtenido en $t4
- la $t5, buffer_salida                                    #cargamos la posicion inicial donde se guarda el texto descifrado
- add $t5, $t5, $t0                                        #nos movemos a la posicion de la letra que modificamos
- sb $t4, 0($t5)                                           #almacenamos la letra cifrada en buffer_cifrado
+    # Indice de la clave = $t1 % $s1
+    div $t1, $s1                                            # dividimos la posicion actual sobre la longitud de la palabra clave
+    mfhi $t3                                                # Residuo de la division
+    add $t3, $s0, $t3                                       # Apuntar al caracter leido de la palabra clave
+    lb $s4, 0($t3)                                          # cargamos el caracter leido de la palabra clave
+    jal obtener_posicion_letra_texto                        # buscamos la posicion en el alfabeto de la letra leida
+    jal obtener_posicion_letra_palabra_clave                # buscamos la posicion en el alfabeto de la palabra clave
+    bltz $s5, siguiente_caracter_descifrado                 # verificamos que la palabra leida en el texto este en el alfabeto de lo contrario se deja como esta en el texto
+    sub $t6, $s5, $s6                                       # restamos los registros
+    addi $t6, $t6, 98                                       # sumamos 98 para evitar numeros negativos
+    div $t6, $t7                                            # dividimos el resultado de $t6 por la longitud del alfabeto
+    mfhi $t8                                                # sacamos el residuo, que seria la posicion del nuevo caracter
+    jal obtener_caracter                                    # obtenemos el nuevo caracter en base a $t8
+    move $t4, $v0                                           # guardamos el caracter obtenido en $t4
+    la $t5, buffer_salida                                   # cargamos la posicion inicial donde se guarda el texto descifrado
+    add $t5, $t5, $t0                                       # nos movemos a la posicion de la letra que modificamos
+    sb $t4, 0($t5)                                          # almacenamos la letra cifrada en buffer_cifrado
  
- addi $t1, $t1, 1                                         #avanzamos el indice de la clave
- addi $t0, $t0, 1                                         #avanzamos el indice del mensaje
+    addi $t1, $t1, 1                                        # avanzamos el indice de la clave
+    addi $t0, $t0, 1                                        # avanzamos el indice del mensaje
  
- j ciclo_descifrado
+    j ciclo_descifrado
   
-
-
-
-
 
 siguiente_caracter_descifrado:
     la   $t5, buffer_salida
@@ -383,27 +406,27 @@ fin_descifrado:
 # $a2: cantidad maxima de bytes a leer
 # Outputs: 
 # $v0: cantidad de bytes leidos (-1 si ocurre un error)
-##################
+##
 leer_archivo:
     move $t0, $a1
     move $t1, $a2
 
-    li $v0, 13                      # Syscall 13: Abrir archivo
-    li $a1, 0                       # Modo 0 = Solo lectura
+    li $v0, 13                     # Syscall 13: Abrir archivo
+    li $a1, 0                      # Modo 0 = Solo lectura
     li $a2, 0
     syscall
 
     bltz $v0, error_abrir_archivo
-    move $t2, $v0                   # Descriptor de archivo
+    move $t2, $v0                  # Descriptor de archivo
 
-    li $v0, 14                      # Syscall 14: Leer archivo
+    li $v0, 14                     # Syscall 14: Leer archivo
     move $a0, $t2
     move $a1, $t0
     move $a2, $t1
     syscall
-    move $t3, $v0                   # Bytes leidos
+    move $t3, $v0                  # Bytes leidos
 
-    li $v0, 16                      # Syscall 16: Cerrar archivo
+    li $v0, 16                     # Syscall 16: Cerrar archivo
     move $a0, $t2
     syscall
 
@@ -414,90 +437,89 @@ error_abrir_archivo:
     li $v0, -1
     jr $ra
     
+    
 ##################
 # Function: obtener_posicion_letra_texto:
 # Purpose: obtener la posicion de la letra del texto leida en el alfabeto definido
 # Inputs: $s3, caracter leido del texto entregado
 #         $t3, el alfabeto
-# outputs: $s5, posicion del caracter leido en el alfabedo
+# outputs: $s5, posicion del caracter leido en el alfabeto
 # variables
-# $t2: indice del alfabero
+# $t2: indice del alfabeto
 # $t3: direccion del alfabeto 
 # $t4: caracter con el que se va a trabajar
 ##################
-
 obtener_posicion_letra_texto: 
- li $t2, 0                                                        #creamos el indice
- la $t3, alfabeto                                                 #cargamos la direccion del alfabeto
+    li $t2, 0                                                       # creamos el indice
+    la $t3, alfabeto                                                # cargamos la direccion del alfabeto
 
 ciclo_buscar_posicion_letra_texto:
- lb $t4, 0($t3)                                                   #cargamos el caracter segun el indice
- beq $t4, $zero,letra_no_esta                                     #verificamos que no hayamos terminado de recorrer el alfabeto
- beq $t4, $s3,posicion_encontrada_texto                           #verificamos que el caracter en la poscion del $t2 del alfabeto sea la misma que la leida en el texto
- addi $t2, $t2, 1                                                 #aumentamos el contador
- addi $t3, $t3, 1					          #pasamos al siguiente caracter del alfabeto
- j ciclo_buscar_posicion_letra_texto                             #volvemos al incio
+    lb $t4, 0($t3)                                                  # cargamos el caracter segun el indice
+    beq $t4, $zero,letra_no_esta                                    # verificamos que no hayamos terminado de recorrer el alfabeto
+    beq $t4, $s3,posicion_encontrada_texto                          # verificamos que el caracter en la posicion del $t2 del alfabeto sea la misma que la leida en el texto
+    addi $t2, $t2, 1                                                # aumentamos el contador
+    addi $t3, $t3, 1                                                # pasamos al siguiente caracter del alfabeto
+    j ciclo_buscar_posicion_letra_texto                             # volvemos al inicio
 
 posicion_encontrada_texto:
- move $s5, $t2                                                    #guardamos la posicion en el registro $s5
- jr $ra
+    move $s5, $t2                                                   # guardamos la posicion en el registro $s5
+    jr $ra
 
 letra_no_esta:
- li $s5, -1
- jr $ra
+    li $s5, -1
+    jr $ra
+
+
 ##################
-# Function: obtener_posicion_letra_texto:
-# Purpose: obtener la posicion de la letra del texto leida en el alfabeto definido
-# Inputs: $s3, caracter leido del texto entregado
+# Function: obtener_posicion_letra_palabra_clave:
+# Purpose: obtener la posicion de la letra de la palabra clave leida en el alfabeto definido
+# Inputs: $s4, caracter leido de la palabra clave
 #         $t3, el alfabeto
-# outputs: $s5, posicion del caracter leido en el alfabedo
+# outputs: $s6, posicion del caracter leido en el alfabeto
 # variables
-# $t2: indice del alfabero
+# $t2: indice del alfabeto
 # $t3: direccion del alfabeto 
 # $t4: caracter con el que se va a trabajar
 ##################
-
 obtener_posicion_letra_palabra_clave: 
- li $t2, 0                                                        #creamos el indice
- la $t3, alfabeto                                                 #cargamos la direccion del alfabeto
+    li $t2, 0                                                       # creamos el indice
+    la $t3, alfabeto                                                # cargamos la direccion del alfabeto
 
-ciclo_buscar_posicion_letra_palabra_clave:
- lb $t4, 0($t3)                                                   #cargamos el caracter segun el indice
- beq $t4, $zero,clave_no_esta                                     #verificamos que no hayamos terminado de recorrer el alfabeto
- beq $t4, $s4,posicion_encontrada_palabra_clave                   #verificamos que el caracter en la poscion del $t2 del alfabeto sea la misma que la leida en la palabra clave
- addi $t2, $t2, 1                                                 #aumentamos el contador
- addi $t3, $t3, 1						  #pasamos al siguiente caracter del alfabeto
- j ciclo_buscar_posicion_letra_palabra_clave                      #volvemos al incio del ciclo
+ciclo_buscar_posicion_letra_palabra_clave:                      
+    lb $t4, 0($t3)                                                  # cargamos el caracter segun el indice
+    beq $t4, $zero,clave_no_esta                                    # verificamos que no hayamos terminado de recorrer el alfabeto
+    beq $t4, $s4,posicion_encontrada_palabra_clave                  # verificamos que el caracter en la posicion del $t2 del alfabeto sea la misma que la leida en la palabra clave
+    addi $t2, $t2, 1                                                # aumentamos el contador
+    addi $t3, $t3, 1                                                # pasamos al siguiente caracter del alfabeto
+    j ciclo_buscar_posicion_letra_palabra_clave                     # volvemos al inicio del ciclo
 
 posicion_encontrada_palabra_clave:
- move $s6, $t2                                                    #guardamos la posicion en el registro $s6
- jr $ra
+    move $s6, $t2                                                   # guardamos la posicion en el registro $s6
+    jr $ra
 
 clave_no_esta:
- li $s6, 0                                                   #guardamos la posicion en el registro $s6
- jr $ra
-##################
-# Function:obtener_nuevo_caracter_alfabeto
-# Purpose: darle un valor a el caracter leido si es que no esta en el alfabeto
-# Inputs: $s3, caracter leido del texto entregado
-#       o $s4, caracter leido en la palabra clave
-# outputs: $s5, posicion no valida para un caracter leido en el alfabeto
-#        o $s6, posicion 0 para que no haya ninguna modificacion
-# variables 
-# $t2: indice del alfabero
-# $t3: direccion del alfabeto 
-# $t4: caracter con el que se va a trabajar
-##################
+    li $s6, 0                                                       # guardamos la posicion en el registro $s6
+    jr $ra
 
+
+##################
+# Function: obtener_caracter
+# Purpose: darle un valor al caracter leido si es que esta en el alfabeto
+# Inputs: $t8, desplazamiento calculado
+# outputs: $v0, caracter obtenido del alfabeto
+# variables 
+# $t2: direccion del alfabeto
+##################
 obtener_caracter:
- la  $t2, alfabeto
- add $t2, $t2, $t8
- lb  $v0, 0($t2)
- jr  $ra
+    la  $t2, alfabeto
+    add $t2, $t2, $t8
+    lb  $v0, 0($t2)
+    jr  $ra
+
 
 ##################
 # Function: escribir_archivo
-# Purpose: Crear el archivo 'deciphered.txt' y escribir el mensaje descifrado
+# Purpose: Crear el archivo y escribir el mensaje procesado
 # Inputs:
 # $a0: nombre del archivo de salida
 # $a1: direccion del buffer de datos
@@ -507,20 +529,20 @@ escribir_archivo:
     move $t0, $a1
     move $t1, $a2
 
-    li $v0, 13                      # Syscall 13: Abrir archivo
-    li $a1, 1                       # Modo 1 = Escritura
+    li $v0, 13                     # Syscall 13: Abrir archivo
+    li $a1, 1                      # Modo 1 = Escritura
     li $a2, 0
     syscall
 
-    move $t2, $v0                   # Descriptor de archivo
+    move $t2, $v0                  # Descriptor de archivo
 
-    li $v0, 15                      # Syscall 15: Escribir archivo
+    li $v0, 15                     # Syscall 15: Escribir archivo
     move $a0, $t2
     move $a1, $t0
     move $a2, $t1
     syscall
 
-    li $v0, 16                      # Syscall 16: Cerrar archivo
+    li $v0, 16                     # Syscall 16: Cerrar archivo
     move $a0, $t2
     syscall
 
